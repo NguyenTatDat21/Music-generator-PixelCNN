@@ -1,18 +1,19 @@
 import math
 
-import keras
+import tensorflow.keras
 import numpy as np
-from keras import backend as K, Input, Model, models
-from keras.callbacks import TensorBoard, ModelCheckpoint
-from keras.datasets import mnist
-from keras.layers import Convolution2D, PReLU, Activation, ReLU, Add, Multiply, Lambda, ZeroPadding2D, Cropping2D, Dropout
-from keras.activations import tanh, sigmoid
-from keras.optimizers import Nadam
-from keras.engine import InputSpec
+from tensorflow.keras import backend as K
+from tensorflow.keras.callbacks import TensorBoard, ModelCheckpoint
+from tensorflow.keras.datasets import mnist
+from tensorflow.keras.layers import Convolution2D, PReLU, Activation, ReLU, Add, Multiply, Lambda, ZeroPadding2D, Cropping2D, Dropout, Input,  InputSpec
+from tensorflow.keras.models import Model
+from tensorflow.keras.activations import tanh, sigmoid
+from tensorflow.keras.optimizers import Nadam
+
 import matplotlib.pyplot as plt
 
 
-print(keras.__version__)
+print(tensorflow.keras.__version__)
 
 
 class MaskedConvolution2D(Convolution2D):
@@ -80,7 +81,7 @@ class MaskedConvolution2D(Convolution2D):
         self.built = True
 
     def call(self, x, mask=None):
-        ''' I just copied the Keras Convolution2D call function so don't worry about all this code.
+        ''' I just copied the tensorflow.keras Convolution2D call function so don't worry about all this code.
             The only important piece is: self.W * self.mask.
             Which multiplies the mask with the weights before calculating convolutions. '''
         output = K.conv2d(
@@ -200,9 +201,9 @@ class ResidualBlockList(object):
 
 
 def create_model():
-    shape = (48, 48, 1)
+    shape = (48, 96, 1)
     filters = 64
-    depth = 15
+    depth = 10
 
     input_img = Input(shape)
 
