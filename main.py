@@ -1,8 +1,10 @@
-import numpy as np
-from keras.callbacks import TensorBoard, ModelCheckpoint
 
 from DataGenerator import import_data
 from nn import create_model
+
+
+import numpy as np
+from keras.callbacks import TensorBoard, ModelCheckpoint
 
 data = import_data()
 data = np.expand_dims(data, axis=-1)

@@ -20,7 +20,7 @@ def generate_data(filename):
 
     data = np.zeros((0, 48, 48))
 
-    for i in range(0, notes.shape[0]-47, 4):
+    for i in range(0, notes.shape[0]-47, 5):
         data = np.append(data, np.expand_dims(notes[i:i+48, :], axis=0), axis=0)
 
     return data
