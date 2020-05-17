@@ -202,8 +202,8 @@ class ResidualBlockList(object):
 
 def create_model():
     shape = (48, 96, 1)
-    filters = 64
-    depth = 10
+    filters = 32
+    depth = 20
 
     input_img = Input(shape)
 
@@ -221,7 +221,7 @@ def create_model():
     outs = Activation('sigmoid')(outs)
 
     model = Model(input_img, outs)
-    model.compile(optimizer=Nadam(), loss='binary_crossentropy')
+    model.compile(optimizer=Nadam(), loss='binary_crossentropy', metrics=['accuracy'])
     model.summary()
 
     return model

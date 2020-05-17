@@ -8,7 +8,7 @@ import numpy as np
 model = create_model()
 model.load_weights("model.h5")
 
-pixels = np.zeros((1, 2000, 96, 1))
+pixels = np.zeros((1, 10000, 96, 1))
 _, rows, cols, channels = pixels.shape
 
 # Iterate the pixels because generation has to be done sequentially pixel by pixel.
