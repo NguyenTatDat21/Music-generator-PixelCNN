@@ -39,5 +39,3 @@ def import_data(dir_name='./midi/'):
     return data
 
 
-print(import_data().shape)
-

@@ -1,11 +1,12 @@
 import math
 
+import tensorflow as tf
 import tensorflow.keras
 import numpy as np
 from tensorflow.keras import backend as K
 from tensorflow.keras.callbacks import TensorBoard, ModelCheckpoint
 from tensorflow.keras.datasets import mnist
-from tensorflow.keras.layers import Convolution2D, PReLU, Activation, ReLU, Add, Multiply, Lambda, ZeroPadding2D, Cropping2D, Dropout, Input,  InputSpec
+from tensorflow.keras.layers import Convolution2D, PReLU, Activation, ReLU, Add, Multiply, Lambda, ZeroPadding2D, Cropping2D, Dropout, Input,  InputSpec, Conv2DTranspose
 from tensorflow.keras.models import Model
 from tensorflow.keras.activations import tanh, sigmoid
 from tensorflow.keras.optimizers import Nadam
@@ -153,11 +154,12 @@ class GatedActivation(object):
 
 
 class DoubleStackBlock(object):
-    def __init__(self, filters, kernel_size, mask_type='B',return_vertical=True):
+    def __init__(self, filters, kernel_size, mask_type='B',return_vertical=True, resize=None):
         self.filters = filters
         self.kernel_size = kernel_size
         self.mask_type = mask_type
         self.return_vertical = return_vertical
+        self.resize = resize
 
     def __call__(self, vertical_model, horizontal_model):
         vertical_stack = vertical_model
@@ -183,45 +185,89 @@ class DoubleStackBlock(object):
         return vertical_stack, horizontal_stack
 
 
-class ResidualBlockList(object):
-    def __init__(self, filters, depth):
+class DownSample(object):
+    def __init__(self, filters):
         self.filters = filters
-        self.depth = depth
 
     def __call__(self, x):
+        x = Convolution2D(filters=self.filters, kernel_size=1, strides=2)(x[0]), Convolution2D(filters=self.filters, kernel_size=1, strides=2)(x[1])
+        return x
+
+
+class UpSample(object):
+    def __init__(self, filters):
+        self.filters = filters
+
+    def __call__(self, x):
+        x = Conv2DTranspose(filters=self.filters, kernel_size=1, strides=2)(x[0]), Conv2DTranspose(filters=self.filters, kernel_size=1, strides=2)(x[1])
+        return x
+
+
+class ResidualBlockList(object):
+    def __init__(self, filters, depth, stacks):
+        self.filters = filters
+        self.depth = depth
+        self.stacks = stacks
+
+    def __call__(self, x):
+        cnt = 0
+        x = x, x
+        layers = [None] * int(self.depth * self.stacks / 2)
         for i in range(self.depth):
-            if i == 0:
-                x = DoubleStackBlock(self.filters, kernel_size=3)(x, x)
-            elif i == self.depth - 1:
-                x = DoubleStackBlock(self.filters, kernel_size=3, return_vertical=False)(x[0], x[1])
-            else:
+            for j in range(self.stacks):
+                if i >= self.depth / 2:
+                    cnt -= 1
+                    x = Add()([x[0], layers[cnt][0]]), Add()([x[1], layers[cnt][1]])
                 x = DoubleStackBlock(self.filters, kernel_size=3)(x[0], x[1])
+                if i < self.depth / 2:
+                    layers[cnt] = x
+                    cnt += 1
+                if j == self.stacks-1:
+                    if i < self.depth / 2 - 1:
+                        x = DownSample(self.filters)(x)
+                    elif self.depth / 2 <= i < self.depth-1:
+                        x = UpSample(self.filters)(x)
+        x = Add()([x[0], x[1]])
+
+
+
+
+        # for i in range(self.depth):
+        #     if i == 0:
+        #         x = DoubleStackBlock(self.filters, kernel_size=3)(x, x)
+        #     elif i == self.depth - 1:
+        #         x = DoubleStackBlock(self.filters, kernel_size=3, return_vertical=False)(x[0], x[1])
+        #     else:
+        #         x = DoubleStackBlock(self.filters, kernel_size=3)(x[0], x[1])
 
         return x
 
 
 def create_model():
-    shape = (48, 96, 1)
-    filters = 32
-    depth = 20
+    strategy = tf.distribute.MirroredStrategy()
+    with strategy.scope():
+        shape = (48, 96, 1)
+        filters = 32
+        depth = 8
+        stacks = 1
 
-    input_img = Input(shape)
+        input_img = Input(shape)
 
-    model = MaskedConvolution2D(filters=filters, kernel_size=(7, 7), padding='same', mask='A')(input_img)
+        model = MaskedConvolution2D(filters=filters, kernel_size=(7, 7), padding='same', mask='A')(input_img)
 
-    # model = InitialBlock(filters)(input_img)
+        # model = InitialBlock(filters)(input_img)
 
-    model = ResidualBlockList(filters, depth)(model)
+        model = ResidualBlockList(filters, depth, stacks)(model)
 
-    for _ in range(2):
-        model = Convolution2D(filters, (1, 1), padding='valid')(model)
-        model = ReLU()(model)
+        for _ in range(2):
+            model = Convolution2D(filters, (1, 1), padding='valid')(model)
+            model = ReLU()(model)
 
-    outs = Convolution2D(1, (1, 1), padding='valid')(model)
-    outs = Activation('sigmoid')(outs)
+        outs = Convolution2D(1, (1, 1), padding='valid')(model)
+        outs = Activation('sigmoid')(outs)
 
-    model = Model(input_img, outs)
-    model.compile(optimizer=Nadam(), loss='binary_crossentropy', metrics=['accuracy'])
-    model.summary()
+        model = Model(input_img, outs)
+        model.compile(optimizer=Nadam(), loss='binary_crossentropy', metrics=['accuracy'])
+        model.summary()
 
     return model
